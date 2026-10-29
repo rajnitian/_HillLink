@@ -1,4 +1,4 @@
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>HillLink</title>
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="referrer" content="strict-origin-when-cross-origin"><meta name="viewport" content="width=device-width,initial-scale=1"><title>HillLink</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"><script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <style>
 :root{--side:#0f3b3f;--side2:#164c4e;--ink:#0d3338;--mut:#5d7476;--bg:#f3f6f4;--card:#fffdf9;--acc:#16766b;--mint:#7fe0b0;--warn:#e2873b;--bad:#c4452f;--line:#dfe6e2}
@@ -31,18 +31,18 @@ const KEYS={'demo-hospital':'hospital','demo-dispatcher':'dispatcher','demo-admi
 const NODES=[];for(let r=0;r<3;r++)for(let c=0;c<3;c++)NODES.push({id:r*3+c,lat:27.1-r*.015,lon:93.59+c*.02});NODES.push({id:9,lat:27.2,lon:93.7});
 const HN=4,SPEED={highway:40,local:25,hill:15},BATCH=2,TIMEOUT_MIN=10,INTERVAL={whole_blood:90,packed_red_cells:90,platelets:14,plasma:28};
 const hav=(a,b)=>{const t=x=>x*Math.PI/180,dl=t(b.lat-a.lat),dn=t(b.lon-a.lon);return 12742*Math.asin(Math.sqrt(Math.sin(dl/2)**2+Math.cos(t(a.lat))*Math.cos(t(b.lat))*Math.sin(dn/2)**2))};
-const mkEdges=()=>[[0,1,'highway'],[1,2,'hill'],[3,4,'local'],[4,5,'local'],[6,7,'hill'],[7,8,'highway'],[0,3,'local'],[3,6,'hill'],[1,4,'highway'],[4,7,'local'],[2,5,'hill'],[5,8,'local']].map(([a,b,type])=>({id:`${a}-${b}`,a,b,type,km:+(hav(NODES[a],NODES[b])*1.3).toFixed(2),closed:false,rain:0}));
+const mkEdges=()=>[[0,1,'highway'],[1,2,'hill'],[3,4,'local'],[4,5,'local'],[6,7,'hill'],[7,8,'highway'],[0,3,'local'],[3,6,'hill'],[1,4,'highway'],[4,7,'local'],[2,5,'hill'],[5,8,'local'],[0,4,'hill'],[4,8,'hill']].map(([a,b,type])=>({id:`${a}-${b}`,a,b,type,km:+(hav(NODES[a],NODES[b])*1.3).toFixed(2),closed:false,rain:0}));
 const seed=()=>({donors:[['A','O-',0],['B','O+',1],['C','B+',2],['D','B+',5],['E','A+',6],['F','AB-',7],['G','B-',8],['H','B+',3]].map(([n,g,nd],i)=>({id:'D'+(i+1),name:'Demo donor '+n,phone:'+9100000000'+(10+i),group:g,node:nd,available:i!==3,consent:i!==6,lastDonationDays:i===1?20:120+i*10,screened:i!==4,locConfidence:i%3?'high':'low',components:Object.keys(INTERVAL),reservedFor:null})),
- ambulances:[{id:'AMB1',name:'Demo ambulance 1',node:0,available:true,assignedTo:null},{id:'AMB2',name:'Demo ambulance 2',node:8,available:true,assignedTo:null}],requests:[],outreach:[],outbox:[],audit:[],idem:{},edges:mkEdges()});
-let D;try{D=JSON.parse(localStorage.hlDB||'null')}catch(e){}D=D||seed();
-const save=()=>localStorage.hlDB=JSON.stringify(D);
+ ambulances:[{id:'AMB1',name:'Demo ambulance 1',node:0,available:true,assignedTo:null},{id:'AMB2',name:'Demo ambulance 2',node:8,available:true,assignedTo:null}],requests:[],outreach:[],outbox:[],audit:[],idem:{},edges:mkEdges(),cfg:{batch:1,timeoutSec:120,auto:true,rank:'distance'}});
+let D;try{D=JSON.parse(localStorage.hlDB2||'null')}catch(e){}D=D||seed();D.cfg=D.cfg||{batch:1,timeoutSec:120,auto:true,rank:'distance'};
+const save=()=>localStorage.hlDB2=JSON.stringify(D);
 const log=(actor,action,ref,detail)=>{D.audit.unshift({at:new Date().toISOString(),actor,action,ref,detail});D.audit.length=Math.min(D.audit.length,300)};
 const edgeMin=e=>e.km/SPEED[e.type]*60*(1+1.5*e.rain)*(e.type==='hill'?1.2:1);
-function dijkstra(src,dst){const dist={},prev={},done=new Set();NODES.forEach(n=>dist[n.id]=Infinity);dist[src]=0;
+function dijkstra(src,dst,mode='time'){const dist={},prev={},done=new Set();NODES.forEach(n=>dist[n.id]=Infinity);dist[src]=0;
  while(true){let u=null;for(const n of NODES)if(!done.has(n.id)&&dist[n.id]<(u===null?Infinity:dist[u]))u=n.id;if(u===null||dist[u]===Infinity||u===dst)break;done.add(u);
-  for(const e of D.edges){if(e.closed)continue;const v=e.a===u?e.b:e.b===u?e.a:null;if(v===null)continue;const w=dist[u]+edgeMin(e);if(w<dist[v]){dist[v]=w;prev[v]={u,e}}}}
+  for(const e of D.edges){if(e.closed)continue;const v=e.a===u?e.b:e.b===u?e.a:null;if(v===null)continue;const w=dist[u]+(mode==='dist'?e.km:edgeMin(e));if(w<dist[v]){dist[v]=w;prev[v]={u,e}}}}
  if(dist[dst]===Infinity)return null;const nodes=[dst],used=[];for(let c=dst;c!==src;c=prev[c].u){nodes.unshift(prev[c].u);used.push(prev[c].e)}
- return{minutes:+dist[dst].toFixed(1),km:+used.reduce((s,e)=>s+e.km,0).toFixed(2),nodes,path:nodes.map(i=>[NODES[i].lat,NODES[i].lon]),estimate:true,at:new Date().toISOString()}}
+ return{mode,minutes:+used.reduce((s,e)=>s+edgeMin(e),0).toFixed(1),km:+used.reduce((s,e)=>s+e.km,0).toFixed(2),nodes,path:nodes.map(i=>[NODES[i].lat,NODES[i].lon]),estimate:true,at:new Date().toISOString()}}
 const nearest=p=>NODES.slice(0,9).reduce((b,n)=>hav(p,n)<hav(p,b)?n:b).id;
 const sp=g=>({abo:g.replace(/[+-]/,''),rh:g.slice(-1)}),aboOK=(d,r)=>d==='O'||d===r||r==='AB';
 function compatible(dg,rg,comp){const d=sp(dg),r=sp(rg);if(comp==='platelets')return{ok:true,note:'Platelets: ABO matching preferred; blood bank decides'};if(comp==='plasma')return{ok:aboOK(r.abo,d.abo)};return{ok:aboOK(d.abo,r.abo)&&(d.rh==='-'||r.rh==='+')}}
@@ -53,25 +53,34 @@ function matches(r){const hosp=nearest(r.coords),left=(new Date(r.deadline)-Date
   if(!c.ok||!d.consent||!d.available||(d.reservedFor&&d.reservedFor!==r.id)||!d.components.includes(r.component)||d.lastDonationDays<INTERVAL[r.component])return null;
   reasons.push('Group/component compatible (listed rule only)');if(c.note)reasons.push(c.note);reasons.push(`Last donation ${d.lastDonationDays}d ago`);
   if(!d.screened)missing.push('No recent health screening confirmation');if(d.locConfidence==='low')missing.push('Low-confidence location');
-  const route=dijkstra(d.node,hosp),mins=route?route.minutes:null;
-  return{donor:{id:d.id,name:d.name,group:d.group},reasons,missing,route,etaMin:mins,feasible:mins!==null&&mins<=left,reserved:d.reservedFor===r.id,score:(mins??9999)+missing.length*15}}).filter(Boolean).sort((a,b)=>a.score-b.score)}
+  const route=dijkstra(d.node,hosp,'time'),short=dijkstra(d.node,hosp,'dist'),mins=route?route.minutes:null,km=short?short.km:null;
+  const key=D.cfg.rank==='distance'?(km??9999)+missing.length:(mins??9999)+missing.length*5;
+  return{donor:{id:d.id,name:d.name,group:d.group},reasons,missing,route,short,etaMin:mins,km,feasible:mins!==null&&mins<=left,reserved:d.reservedFor===r.id,score:key}}).filter(Boolean).sort((a,b)=>a.score-b.score||(a.etaMin??9999)-(b.etaMin??9999))}
 function rankAmb(r,donor){const hosp=nearest(r.coords),left=(new Date(r.deadline)-Date.now())/6e4;
  return D.ambulances.filter(a=>a.available).map(a=>{const p=dijkstra(a.node,donor.node),h=dijkstra(donor.node,hosp);if(!p||!h)return null;const t=p.minutes+h.minutes;return{ambulance:a,pickup:p,toHospital:h,totalMin:+t.toFixed(1),feasible:t<=left}}).filter(Boolean).sort((a,b)=>a.totalMin-b.totalMin)}
 const GROUPS=['A+','A-','B+','B-','AB+','AB-','O+','O-'],URG=['critical','urgent','routine'];
-function localApi(path,method,b,h){b=b||{};const[p]=path.split('?'),role=KEYS[h['x-api-key']];expire();let m;
+function sendBatch(r,actor){if(['expired','cancelled','completed','donor accepted','ambulance assigned'].includes(r.status))throw new Error('Request closed or donor already reserved');
+ const done=new Set(D.outreach.filter(o=>o.requestId===r.id).map(o=>o.donorId)),next=matches(r).filter(x=>x.feasible&&!done.has(x.donor.id)).slice(0,D.cfg.batch);if(!next.length)throw new Error('No further eligible donors can arrive in time');
+ next.forEach(x=>{const d=D.donors.find(y=>y.id===x.donor.id);sendSms(d.phone,`HILLLINK BLOOD ALERT: A ${r.verified?'verified':'DEMO (unverified)'} hospital needs ${r.bloodGroup} blood at ${r.area||'hospital area'} by ${new Date(r.deadline).toLocaleTimeString()}. Reply 1 to express interest or 2 to decline. Request ID: ${r.id}. Do not reply with medical information.`);
+  D.outreach.push({requestId:r.id,donorId:d.id,phone:d.phone,status:'sent',sentAt:Date.now(),expiresAt:Date.now()+D.cfg.timeoutSec*1e3})});
+ if(r.status==='pending')r.status='matching';log(actor,'outreach_sent',r.id,next.map(x=>x.donor.id).join(',')+(D.cfg.rank==='distance'?' (nearest first, mock SMS)':' (fastest ETA first, mock SMS)'));return next.length}
+function escalate(r){if(r.status!=='matching'||!D.cfg.auto||D.outreach.some(o=>o.requestId===r.id&&o.status==='sent'))return;try{sendBatch(r,'auto')}catch(e){}}
+function tick(){let ch=false;D.outreach.forEach(o=>{if(o.status==='sent'&&Date.now()>o.expiresAt){o.status='noreply';log('system','noreply',o.requestId,o.donorId);ch=true}});
+ D.requests.forEach(r=>{const n=D.outreach.length;escalate(r);if(D.outreach.length!==n)ch=true});if(ch)save();return ch}
+function localApi(path,method,b,h){b=b||{};const[p]=path.split('?'),role=KEYS[h['x-api-key']];expire();tick();let m;
  const need=(...rs)=>{if(!role)throw new Error('Missing or invalid key');if(rs.length&&!rs.includes(role)&&role!=='admin')throw new Error('Role not permitted')};
  const req=id=>{const r=D.requests.find(x=>x.id===id);if(!r)throw new Error('Request not found');return r};
  const out=x=>{save();return JSON.parse(JSON.stringify(x))};
- if(p==='/webhooks/sms'){const from=String(b.from||''),word=String(b.body||'').trim().split(/\s+/)[0];
-  const o=[...D.outreach].reverse().find(x=>x.phone===from);if(!o)return{ok:false,reason:'unknown sender'};const r=D.requests.find(x=>x.id===o.requestId);
+ if(p==='/webhooks/sms'){const from=String(b.from||''),tk=String(b.body||'').trim().split(/\s+/),word=tk[0],rid=(tk[1]||'').toUpperCase();
+  const o=[...D.outreach].reverse().find(x=>x.phone===from&&(!rid||x.requestId===rid));if(!o)return{ok:false,reason:rid?'unknown sender or request ID':'unknown sender'};const r=D.requests.find(x=>x.id===o.requestId);
   const reply=msg=>{sendSms(from,msg);return out({ok:true,status:o.status,reply:msg})};
   if(!['1','2'].includes(word))return reply('HILLLINK: Invalid reply. Reply 1 to express interest or 2 to decline.');
   if(o.status!=='sent')return reply('HILLLINK: We already recorded your reply.');
   if(!r||['expired','cancelled','completed'].includes(r.status)||Date.now()>o.expiresAt){o.status='late';return reply('HILLLINK: This request is no longer open. Thank you.')}
-  if(word==='2'){o.status='declined';log('donor','declined',r.id,o.donorId);return reply('HILLLINK: Thanks. Recorded as declined.')}
+  if(word==='2'){o.status='declined';log('donor','declined',r.id,o.donorId);escalate(r);return reply('HILLLINK: Thanks. Recorded as declined.')}
   const d=D.donors.find(x=>x.id===o.donorId);if(r.donor||!matches(r).some(x=>x.donor.id===d.id)){o.status='late';return reply('HILLLINK: Thanks. Help is no longer needed from you for this request.')}
   o.status='accepted';r.donor=d.id;r.status='donor accepted';d.reservedFor=r.id;log('donor','reserved',r.id,d.id);return reply('HILLLINK: Thank you. Interest recorded. Hospital staff will confirm suitability and contact you.')}
- if(p==='/api/state'){need();return out({role,mode:'DEMO',nodes:NODES,edges:D.edges,hospitalNode:HN,requests:D.requests,donors:D.donors.map(d=>({...d,phone:d.phone.slice(0,-2)+'••'})),ambulances:D.ambulances,outbox:role==='hospital'?[]:D.outbox,audit:role==='admin'?D.audit:[]})}
+ if(p==='/api/state'){need();return out({role,mode:'DEMO',cfg:D.cfg,outreach:D.outreach.map(o=>({requestId:o.requestId,donorId:o.donorId,status:o.status,expiresAt:o.expiresAt})),nodes:NODES,edges:D.edges,hospitalNode:HN,requests:D.requests,donors:D.donors.map(d=>({...d,phone:d.phone.slice(0,-2)+'••'})),ambulances:D.ambulances,outbox:role==='hospital'?[]:D.outbox,audit:role==='admin'?D.audit:[]})}
  if(p==='/api/requests'&&method==='POST'){need('hospital');const key=h['idempotency-key'];if(key&&D.idem[key])return out(D.requests.find(r=>r.id===D.idem[key]));const err=[];
   if(!GROUPS.includes(b.bloodGroup))err.push('bloodGroup');if(!Object.keys(INTERVAL).includes(b.component))err.push('component');if(!(b.units>=1&&b.units<=20))err.push('units');
   if(!b.hospital||String(b.hospital).length>80)err.push('hospital');if(!URG.includes(b.urgency))err.push('urgency');if(!/^\+?\d{8,15}$/.test(b.phone||''))err.push('phone');if(isNaN(new Date(b.deadline))||new Date(b.deadline)<Date.now())err.push('deadline');
@@ -82,11 +91,7 @@ function localApi(path,method,b,h){b=b||{};const[p]=path.split('?'),role=KEYS[h[
   if(act==='verify'){need('hospital');r.verified=true;r.demo=false;log(role,'verified',r.id);return out(r)}
   if(act==='cancel'){need('hospital','dispatcher');r.status='cancelled';D.donors.forEach(d=>{if(d.reservedFor===r.id)d.reservedFor=null});D.ambulances.forEach(a=>{if(a.assignedTo===r.id){a.assignedTo=null;a.available=true}});log(role,'cancelled',r.id);return out(r)}
   if(act==='matches'){need('hospital','dispatcher');return{matches:matches(r)}}
-  if(act==='outreach'){need('hospital','dispatcher');if(['expired','cancelled','completed'].includes(r.status))throw new Error('Request closed');
-   const done=new Set(D.outreach.filter(o=>o.requestId===r.id).map(o=>o.donorId)),next=matches(r).filter(x=>x.feasible&&!done.has(x.donor.id)).slice(0,BATCH);if(!next.length)throw new Error('No further eligible donors in time');
-   next.forEach(x=>{const d=D.donors.find(y=>y.id===x.donor.id);sendSms(d.phone,`HILLLINK BLOOD ALERT: A ${r.verified?'verified':'DEMO (unverified)'} hospital needs ${r.bloodGroup} blood at ${r.area||'hospital area'} by ${new Date(r.deadline).toLocaleTimeString()}. Reply 1 to express interest or 2 to decline. Request ID: ${r.id}. Do not reply with medical information.`);
-    D.outreach.push({requestId:r.id,donorId:d.id,phone:d.phone,status:'sent',expiresAt:Date.now()+TIMEOUT_MIN*6e4})});
-   if(r.status==='pending')r.status='matching';log(role,'outreach_sent',r.id,next.length+' mock SMS');return out({sent:next.length,mock:true})}
+  if(act==='outreach'){need('hospital','dispatcher');const n=sendBatch(r,role);return out({sent:n,mock:true})}
   if(act==='ambulances'){need('dispatcher');const d=D.donors.find(x=>x.id===r.donor);if(!d)throw new Error('No reserved donor');return out(rankAmb(r,d))}
   if(act==='ambulance'){need('dispatcher');const d=D.donors.find(x=>x.id===r.donor);if(!d)throw new Error('No reserved donor');if(r.ambulance)throw new Error('Ambulance already assigned');
    const rk=rankAmb(r,d),pick=b.override?rk.find(x=>x.ambulance.id===b.ambulanceId):rk.find(x=>x.feasible);if(!pick||!pick.ambulance.available)throw new Error('No available feasible ambulance (rechecked)');
@@ -94,6 +99,7 @@ function localApi(path,method,b,h){b=b||{};const[p]=path.split('?'),role=KEYS[h[
    return out({...r,notice:'Recorded in HillLink only. No dispatch provider is integrated; contact the ambulance by your own channel.'})}
   if(act==='complete'){need('dispatcher','hospital');r.status='completed';D.ambulances.forEach(a=>{if(a.assignedTo===r.id){a.assignedTo=null;a.available=true}});D.donors.forEach(d=>{if(d.reservedFor===r.id)d.reservedFor=null});log(role,'completed',r.id);return out(r)}}
  if(p==='/api/admin/edge'){need('admin');const e=D.edges.find(x=>x.id===b.id);if(!e)throw new Error('Unknown edge');if(typeof b.closed==='boolean')e.closed=b.closed;if(b.rain>=0&&b.rain<=1)e.rain=+b.rain;log(role,'edge_update',e.id,JSON.stringify({closed:e.closed,rain:e.rain}));return out(e)}
+ if(p==='/api/admin/cfg'){need('hospital','dispatcher');const c=D.cfg;if(['distance','eta'].includes(b.rank))c.rank=b.rank;if(b.batch>=1&&b.batch<=5)c.batch=Math.floor(b.batch);if(b.timeoutSec>=5&&b.timeoutSec<=3600)c.timeoutSec=Math.floor(b.timeoutSec);if(typeof b.auto==='boolean')c.auto=b.auto;log(role,'cfg_update','',JSON.stringify(c));return out(c)}
  if(p==='/api/admin/reset'){need('admin');D=seed();return out({ok:true})}
  throw new Error('Unknown endpoint')}
 //ENGINE-END
@@ -104,7 +110,7 @@ $('#nav').onclick=e=>{if(e.target.dataset.t){tab=e.target.dataset.t;render()}};$
 async function api(p,o={}){const headers={'content-type':'application/json','x-api-key':$('#role').value,...(o.headers||{})};
  if(MODE==='local')return localApi(p,o.method||'GET',o.body,headers);
  const r=await fetch(p.replace(/^\//,''),{method:o.method,headers,body:o.body?JSON.stringify(o.body):undefined});const j=await r.json();if(!r.ok)throw new Error(j.error+(j.fields?': '+j.fields.join(', '):''));return j}
-async function load(){try{S=await api('/api/state');setConn(true);render()}catch(e){setConn(false);if(S)render()}}
+let lastSig='';async function load(){try{const n=await api('/api/state'),sig=JSON.stringify(n);setConn(true);if(sig===lastSig&&S)return;lastSig=sig;S=n;render()}catch(e){setConn(false);if(S)render()}}
 function setConn(on){$('#conn').className='pill'+(on?'':' off');$('#conn span:last-child').textContent=MODE==='local'?'Standalone · data saved in this browser':on?'Server online':`Offline · ${q.length} queued · SMS still works without internet`;if(on&&MODE==='server')flush()}
 async function flush(){while(q.length){const j=q[0];try{await api('/api/requests',{method:'POST',headers:{'idempotency-key':j.key},body:j.body});q.shift();localStorage.hlQueue=JSON.stringify(q)}catch(e){if(/Invalid/.test(e.message)){q.shift();localStorage.hlQueue=JSON.stringify(q)}else return}}}
 const act=async(p,body)=>{try{const r=await api(p,{method:'POST',body:body||{}});if(r&&r.notice)alert(r.notice);await load();return r}catch(e){alert(e.message)}};
@@ -136,16 +142,33 @@ async function submit(){const b=Object.fromEntries(new FormData($('#f')));b.dead
  try{await api('/api/requests',{method:'POST',headers:{'idempotency-key':key},body:b});localStorage.removeItem('hlDraft');draft={};await load();tab='Overview';render()}
  catch(e){if(MODE==='local'||/Invalid|key|permitted/.test(e.message))return alert(e.message);q.push({key,body:b});localStorage.hlQueue=JSON.stringify(q);setConn(false);alert('No connection. Request queued and will be sent when online.')}}
 async function sim(w){try{const r=await api('/webhooks/sms',{method:'POST',body:{from:$('#sp').value.trim(),body:w}});alert(r.reply||r.reason);load()}catch(e){alert(e.message)}}
-function initMap(){if(!window.L)return $('#map').innerHTML='<p class="mut" style="padding:20px">Map needs internet to load. Matching data still works.</p>';map=L.map('map').setView([27.085,93.61],12);L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'© OpenStreetMap'}).addTo(map);
- S.edges.forEach(e=>L.polyline([[S.nodes[e.a].lat,S.nodes[e.a].lon],[S.nodes[e.b].lat,S.nodes[e.b].lon]],{color:e.closed?'#c4452f':e.rain?'#e2873b':'#6b8f8b',weight:3,dashArray:e.closed?'6':null}).addTo(map).bindTooltip(`${e.id} ${e.type}${e.closed?' CLOSED':''}`));
+function initMap(){if(!window.L)return $('#map').innerHTML='<p class="mut" style="padding:20px">Map needs internet to load. Matching data still works.</p>';map=L.map('map').setView([27.085,93.61],12);$('#map').style.background='#e9efec';
+ const prov={'Street map (Esri)':L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}',{maxZoom:19,attribution:'Tiles © Esri'}),
+  'OpenStreetMap':L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap contributors'}),'Road graph only (no internet tiles)':L.layerGroup()};
+ let te=0;const first=prov['Street map (Esri)'].addTo(map);
+ first.on('tileerror',()=>{if(++te===4){map.removeLayer(first);prov['Road graph only (no internet tiles)'].addTo(map);$('#rinfo').textContent='Map tiles unavailable, showing the built-in road graph instead.'}});
+ L.control.layers(prov,null,{collapsed:true}).addTo(map);
+ S.edges.forEach(e=>L.polyline([[S.nodes[e.a].lat,S.nodes[e.a].lon],[S.nodes[e.b].lat,S.nodes[e.b].lon]],{color:e.closed?'#c4452f':e.rain?'#e2873b':'#1f6d66',weight:4,opacity:.9,dashArray:e.closed?'6':null}).addTo(map).bindTooltip(`${e.id} ${e.type}${e.closed?' CLOSED':''}`));
+ S.nodes.slice(0,9).forEach(n=>L.circleMarker([n.lat,n.lon],{radius:5,color:'#0f3b3f',fillColor:'#fff',fillOpacity:1,weight:2}).addTo(map).bindTooltip('Junction '+n.id));
+ S.donors.forEach(d=>L.circleMarker([S.nodes[d.node].lat+.0012,S.nodes[d.node].lon+.0012],{radius:6,color:'#fff',weight:1,fillColor:d.available&&d.consent?'#16766b':'#999',fillOpacity:1}).addTo(map).bindTooltip(d.name+' · '+d.group));
+ S.ambulances.forEach(a=>L.circleMarker([S.nodes[a.node].lat-.0012,S.nodes[a.node].lon-.0012],{radius:6,color:'#fff',weight:1,fillColor:'#c4452f',fillOpacity:1}).addTo(map).bindTooltip(a.name));
  L.marker([S.nodes[S.hospitalNode].lat,S.nodes[S.hospitalNode].lon]).addTo(map).bindTooltip('Hospital')}
+async function cfgSet(){await act('/api/admin/cfg',{rank:$('#cr').value,batch:+$('#cb').value,timeoutSec:+$('#ct').value,auto:$('#ca').checked})}
 async function match(){const r=S.requests.find(x=>x.id===selected);if(!r)return;let m;try{m=(await api(`/api/requests/${r.id}/matches`)).matches}catch(e){return $('#mres').innerHTML=`<div class="note">${H(e.message)}</div>`}
- window._r={};m.forEach(x=>window._r[x.donor.id]=x);
- $('#mres').innerHTML=`${stat(r)}<div class="note">Blood-bank staff must confirm final suitability.${r.demo?' Unverified: alerts are demo only.':''}</div>`+(m.map(x=>`<div class="req"><b>${H(x.donor.name)}</b> ${x.donor.group} · ETA ${x.etaMin??'unreachable'} min <span class="tag ${x.feasible?'ok':'bad'}">${x.feasible?'before deadline':'too late'}</span> ${x.reserved?'<span class="tag ok">reserved</span>':''}
- <div class="mut">${x.reasons.map(H).join('; ')}</div>${x.missing.length?`<div class="mut" style="color:var(--bad)">Missing: ${x.missing.map(H).join('; ')}</div>`:''}<button class="btn alt sm" onclick="show('${x.donor.id}')">Show route</button></div>`).join('')||'<p class="mut">No eligible donors.</p>')
- +`<div class="row"><button class="btn sm" onclick="act('/api/requests/${r.id}/outreach')">Send SMS batch (mock)</button></div>`+(r.donor?`<h4 style="margin-top:14px">Ambulance</h4><div id="amb" class="mut"></div>`:'');if(r.donor)amb(r)}
-function show(id){const x=window._r[id];if(!map||!x||!x.route)return alert('No route available');layers.forEach(l=>l.remove());layers=[L.polyline(x.route.path,{color:'#16766b',weight:6}).addTo(map)];map.fitBounds(layers[0].getBounds());$('#rinfo').textContent=`Estimated ${x.route.minutes} min · ${x.route.km} km · data time ${new Date(x.route.at).toLocaleTimeString()} (estimate)`}
+ window._r={};m.forEach(x=>window._r[x.donor.id]=x);const c=S.cfg||{rank:'distance',batch:1,timeoutSec:120,auto:true},ol=(S.outreach||[]).filter(o=>o.requestId===r.id),st=id=>{const o=ol.find(x=>x.donorId===id);return o?`<span class="tag ${o.status==='accepted'?'ok':o.status==='sent'?'demo':'bad'}">${o.status==='sent'?'SMS sent, waiting until '+new Date(o.expiresAt).toLocaleTimeString():o.status}</span>`:''};
+ $('#mres').innerHTML=`${stat(r)}<div class="note">Blood-bank staff must confirm final suitability.${r.demo?' Unverified: alerts are demo only.':''}</div>
+ <select id="cr" onchange="cfgSet()"><option value="distance" ${c.rank==='distance'?'selected':''}>Contact nearest donor first (shortest road km)</option><option value="eta" ${c.rank==='eta'?'selected':''}>Contact fastest ETA first</option></select>
+ <div class="row" style="align-items:center"><label style="margin:0">Batch</label><input id="cb" type="number" min="1" max="5" value="${c.batch}" onchange="cfgSet()" style="width:70px"><label style="margin:0">Reply wait (sec)</label><input id="ct" type="number" min="5" max="3600" value="${c.timeoutSec}" onchange="cfgSet()" style="width:90px"><label style="margin:0;display:flex;gap:6px;align-items:center"><input id="ca" type="checkbox" ${c.auto?'checked':''} onchange="cfgSet()" style="width:auto;min-height:0"> Auto-contact next donor</label></div>`
+ +(m.map((x,i)=>`<div class="req"><b>#${i+1} ${H(x.donor.name)}</b> ${x.donor.group} <span class="tag ${x.feasible?'ok':'bad'}">${x.feasible?'can arrive before deadline':'too late'}</span> ${x.reserved?'<span class="tag ok">reserved</span>':''} ${st(x.donor.id)}
+ <div class="mut">Shortest: ${x.short?x.short.km+' km · '+x.short.minutes+' min':'unreachable'} | Fastest: ${x.route?x.route.minutes+' min · '+x.route.km+' km':'unreachable'}</div>
+ <div class="mut">${x.reasons.map(H).join('; ')}</div>${x.missing.length?`<div class="mut" style="color:var(--bad)">Missing: ${x.missing.map(H).join('; ')}</div>`:''}<button class="btn alt sm" onclick="show('${x.donor.id}')">Show shortest + fastest route</button></div>`).join('')||'<p class="mut">No eligible donors.</p>')
+ +`<div class="row"><button class="btn sm" onclick="act('/api/requests/${r.id}/outreach')">Send mock SMS to ${c.batch>1?'next '+c.batch+' donors':'next nearest donor'}</button></div>`+(r.donor?`<h4 style="margin-top:14px">Ambulance</h4><div id="amb" class="mut"></div>`:'');if(r.donor)amb(r)}
+function show(id){const x=window._r[id];if(!map||!x||!x.route)return alert('No route available');layers.forEach(l=>l.remove());layers=[];
+ if(x.short)layers.push(L.polyline(x.short.path,{color:'#2b6cb0',weight:5,dashArray:'8 8'}).addTo(map).bindTooltip('Shortest route'));
+ layers.push(L.polyline(x.route.path,{color:'#16766b',weight:7,opacity:.8}).addTo(map).bindTooltip('Fastest route'));map.fitBounds(layers[layers.length-1].getBounds().pad(.4));
+ const same=JSON.stringify(x.short&&x.short.nodes)===JSON.stringify(x.route.nodes);
+ $('#rinfo').innerHTML=`<b style="color:#16766b">Fastest (solid green):</b> ${x.route.minutes} min · ${x.route.km} km. <b style="color:#2b6cb0">Shortest (dashed blue):</b> ${x.short.km} km · ${x.short.minutes} min.${same?' Both are the same road here.':''} Estimate at ${new Date(x.route.at).toLocaleTimeString()}.`}
 async function amb(r){try{const a=await api(`/api/requests/${r.id}/ambulances`);$('#amb').innerHTML=a.map(x=>`<div class="req">${H(x.ambulance.name)} · pickup ${x.pickup.minutes} + hospital ${x.toHospital.minutes} = ${x.totalMin} min <span class="tag ${x.feasible?'ok':'bad'}">${x.feasible?'feasible':'late'}</span> <button class="btn alt sm" onclick="act('/api/requests/${r.id}/ambulance',{override:true,ambulanceId:'${x.ambulance.id}'})">Assign</button></div>`).join('')+`<div class="row"><button class="btn sm" onclick="act('/api/requests/${r.id}/ambulance')">Assign best feasible</button><button class="btn alt sm" onclick="act('/api/requests/${r.id}/complete')">Mark completed</button></div><div class="note">Assignment is recorded here only; no dispatch is sent.</div>`}catch(e){$('#amb').textContent=e.message+' (dispatcher role required)'}}
 addEventListener('online',()=>MODE==='server'&&flush());addEventListener('offline',()=>MODE==='server'&&setConn(false));
-(async()=>{try{const r=await fetch('api/state',{headers:{'x-api-key':'demo-hospital'}});await r.json();MODE='server'}catch(e){MODE='local'}await load();setInterval(load,15000)})();
+(async()=>{try{const r=await fetch('api/state',{headers:{'x-api-key':'demo-hospital'}});await r.json();MODE='server'}catch(e){MODE='local'}await load();setInterval(load,15000);setInterval(()=>{if(MODE==='local'&&tick())load()},3000)})();
 </script></body></html>
