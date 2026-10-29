@@ -2,7 +2,7 @@
 
 Helps hospitals in hill districts (built around Arunachal Pradesh) find blood donors fast and send an ambulance to bring the donor in.
 
-- **Team:** _<CESS>_ — _<Raj chouhan, Dikenno Pul, Chochong Tsering and Kaling Yapi>_
+- **Team:** _<CESS>_ — _<[CESS], Raj chouhan, Dikenno Pul, Chochong Tsering and Kaling Yapi>_
 - **Deployment URL:** _<https://rajnitian.github.io/_HillLink/>
 Helps hospitals in hill districts (built around Arunachal Pradesh) find blood donors fast and send an ambulance to bring the donor in.
 
