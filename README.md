@@ -6,8 +6,7 @@ Helps hospitals in hill districts (built around Arunachal Pradesh) find blood do
 - **Deployment URL:** _<https://rajnitian.github.io/_HillLink/>
 Helps hospitals in hill districts (built around Arunachal Pradesh) find blood donors fast and send an ambulance to bring the donor in.
 
-- **Team:** _<team name>_ — _<member names and roles>_
-- **Deployment URL:** _<add if deployed, otherwise "not deployed">_
+
 
 ## What it does
 
